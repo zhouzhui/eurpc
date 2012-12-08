@@ -1,0 +1,69 @@
+<?xml version="1.0" ?>
+<project name="eurpc" basedir="." default="compile" xmlns:artifact="urn:maven-artifact-ant">
+	<property file="${basedir}/default.properties" />
+
+	<path id="classpath">
+		<fileset dir="${lib.dir}">
+			<include name="**/*.jar" />
+		</fileset>
+	</path>
+
+	<condition property="mvn" value="mvn.bat" else="mvn">
+		<os family="windows" />
+	</condition>
+
+	<!-- clean -->
+	<target name="clean">
+		<delete dir="${build.dir}" />
+		<mkdir dir="${build.dir}" />
+	</target>
+
+	<target name="mvnreflesh">
+		<exec executable="${mvn}" failonerror="true">
+			<arg value="eclipse:clean" />
+		</exec>
+		<exec executable="${mvn}" failonerror="true">
+			<arg value="eclipse:eclipse" />
+		</exec>
+	</target>
+
+	<!-- copy dependencies to lib -->
+	<target name="copylib">
+		<delete includeemptydirs="true">
+			<fileset dir="${lib.dir}" includes="**/*" />
+		</delete>
+		<exec executable="${mvn}" failonerror="true">
+			<arg value="dependency:copy-dependencies" />
+			<arg value="-DoutputDirectory=${lib.dir}" />
+		</exec>
+	</target>
+
+	<!-- Build the project. -->
+	<!-- mvn compile -->
+	<target name="compile" depends="clean,copylib">
+		<exec dir="${basedir}" executable="${mvn}" failonerror="true">
+			<arg line="compile" />
+		</exec>
+	</target>
+
+	<!-- ant compile -->
+	<target name="ant-compile" depends="clean,copylib">
+		<delete dir="${build.classes}" />
+		<mkdir dir="${build.classes}" />
+		<javac destdir="${build.classes}" includeantruntime="false" source="${compile.level}" target="${compile.level}" debug="${compile.debug}" deprecation="${compile.deprecation}" optimize="${compile.optimize}" failonerror="true" encoding="${encoding}">
+			<src path="${src.main.java}" />
+			<classpath refid="classpath" />
+		</javac>
+	</target>
+
+	<target name="jar" depends="ant-compile">
+		<jar destfile="${build.dir}/${product}-${product.version}.jar">
+			<fileset dir="${build.classes}">
+				<exclude name="**/Test*.class" />
+			</fileset>
+		</jar>
+		<zip destfile="${build.dir}/${product}-src.zip">
+			<fileset dir="${src.main.java}" excludes="**/.svn" />
+		</zip>
+	</target>
+</project>
