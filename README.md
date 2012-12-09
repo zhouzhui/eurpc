@@ -30,3 +30,6 @@ an easy use rpc framework
 * ProtostuffSerializer: protostuff-core(1.0.7), protostuff-runtime(1.0.7)  
 * ProtobufSerializer: protostuff-core(1.0.7), protostuff-runtime(1.0.7)  
 * GraphSerializer: protostuff-core(1.0.7), protostuff-runtime(1.0.7)  
+
+# Downloads
+* [eurpc-0.1.0.jar] (https://github.com/downloads/hfdiao/eurpc/eurpc-0.1.0.jar)
