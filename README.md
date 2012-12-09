@@ -11,7 +11,7 @@ an easy use rpc framework
     
     // SimpleRpcServer could be replaced by NettyRpcServer(SimpleSerializer not compatitable for NettyRpcServer)
     // SimpleSerializer could be replaced by ProtostuffSerializer(implemented ServerSerializer)
-    RpcServer server = new SimpleRpcServer(port, SimpleSerializer.getInstance(), handler); 
+    RpcServer server = new SimpleRpcServer(port, SimpleSerializer.getInstance(), new Object[]{handler}); 
     server.start();
 
 ## Client
