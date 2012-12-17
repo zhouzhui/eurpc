@@ -65,6 +65,8 @@ public class SimpleRpcClient implements RpcClient, InvocationHandler {
 
     private OutputStream out;
 
+    private boolean inited;
+
     /**
      * tcpNoDelay: true, keepAlive: true, connectTimeout: infinite, readTimeout:
      * infinite
@@ -125,7 +127,7 @@ public class SimpleRpcClient implements RpcClient, InvocationHandler {
     }
 
     public void init() throws Throwable {
-        if (null != socket) {
+        if (inited) {
             return;
         }
         socket = new Socket();
@@ -133,6 +135,7 @@ public class SimpleRpcClient implements RpcClient, InvocationHandler {
                 socketOptions.getConnectTimeout());
         in = new BufferedInputStream(socket.getInputStream());
         out = new BufferedOutputStream(socket.getOutputStream());
+        inited = true;
     }
 
     @Override
@@ -140,6 +143,22 @@ public class SimpleRpcClient implements RpcClient, InvocationHandler {
         IOUtils.closeQuietly(in);
         IOUtils.closeQuietly(out);
         IOUtils.closeQuietly(socket);
+        
+        in = null;
+        out = null;
+        socket = null;
+        inited = false;
+    }
+    
+    @Override
+    public boolean isInited() {
+        return inited;
+    }
+
+    @Override
+    public boolean isClosed() {
+        return (null == socket) || !socket.isConnected() || socket.isClosed()
+                || socket.isInputShutdown() || socket.isOutputShutdown();
     }
 
     @Override

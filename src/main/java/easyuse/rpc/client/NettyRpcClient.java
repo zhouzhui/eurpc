@@ -77,6 +77,8 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
 
     private SocketConfig socketOptions;
 
+    private boolean inited;
+
     /**
      * tcpNoDelay: true, keepAlive: true, connectTimeout: infinite, readTimeout:
      * infinite
@@ -132,7 +134,7 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
     }
 
     public void init() throws Throwable {
-        if (null != channel) {
+        if (inited) {
             return;
         }
         ChannelFactory factory = new NioClientSocketChannelFactory(
@@ -167,6 +169,18 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
             throw channelFuture.getCause();
         }
         channel = channelFuture.getChannel();
+        inited = true;
+    }
+    
+    @Override
+    public boolean isInited() {
+        return inited;
+    }
+    
+    @Override
+    public boolean isClosed() {
+        return (null == channel) || !channel.isConnected()
+                || !channel.isReadable() || !channel.isWritable();
     }
 
     @Override
@@ -176,11 +190,6 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
         resp.setException(e.getCause());
         response = resp;
         close();
-    }
-
-    public boolean isClosed() {
-        return !channel.isConnected() || !channel.isReadable()
-                || !channel.isWritable();
     }
 
     public void waitForResponse() {
@@ -229,13 +238,18 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
 
     @Override
     public void close() throws Exception {
-        if (!isClosed()) {
+        if (null != channel) {
             channel.close().awaitUninterruptibly();
             channel.getFactory().releaseExternalResources();
-            timer.stop();
             synchronized (channel) {
                 channel.notifyAll();
             }
+            channel = null;
         }
+        if (null != timer) {
+            timer.stop();
+            timer = null;
+        }
+        inited = false;
     }
 }

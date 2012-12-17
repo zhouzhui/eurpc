@@ -50,4 +50,18 @@ public interface RpcClient {
      * @throws Throwable
      */
     void close() throws Throwable;
+    
+    /**
+     * client is initialized or not
+     * 
+     * @return
+     */
+    boolean isInited();
+    
+    /**
+     * cient is closed or not
+     * 
+     * @return
+     */
+    boolean isClosed();
 }
