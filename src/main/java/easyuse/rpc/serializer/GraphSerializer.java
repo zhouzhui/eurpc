@@ -26,32 +26,51 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc.serialize;
+package easyuse.rpc.serializer;
 
+import com.dyuproject.protostuff.GraphIOUtil;
 import com.dyuproject.protostuff.LinkedBuffer;
-import com.dyuproject.protostuff.ProtostuffIOUtil;
 import com.dyuproject.protostuff.Schema;
 
 /**
+ * <p>
+ * Features:
+ * <ul>
+ * <li>high-performance graph serialization</li>
+ * <li>handles cyclic dependencies and polymorphic pojos (interface and abstract
+ * classes)</li>
+ * </ul>
+ * </p>
+ * <p>
+ * Limitations:
+ * <ul>
+ * <li>When a root message is serialized/deserialized, its nested messages
+ * should not contain references to it.</li>
+ * </ul>
+ * <p>
+ * <strong> Note that if you have collection fields that can potentially be
+ * cyclic, you need to enable the system property below:
+ * <p style="background:gray;height:24px;line-height:24px;text-indent:20px">
+ * -Dprotostuff.runtime.collection_schema_on_repeated_fields=true
+ * </p>
+ * </strong>
+ * 
+ * @see <a
+ *      href="http://code.google.com/p/protostuff/wiki/SerializingObjectGraphs"
+ *      >SerializingObjectGraphs</a> </p>
  * @author dhf
  */
-public class ProtoStuffSerializer extends AbstractProtostuffSerializer {
-    private static final ProtoStuffSerializer INSTANCE = new ProtoStuffSerializer();
-
-    private ProtoStuffSerializer() {}
-
-    public static ProtoStuffSerializer getInstance() {
-        return INSTANCE;
-    }
+public class GraphSerializer extends AbstractProtostuffSerializer {
 
     @Override
     protected <T> int writeObject(LinkedBuffer buffer, T object,
             Schema<T> schema) {
-        return ProtostuffIOUtil.writeTo(buffer, object, schema);
+        return GraphIOUtil.writeTo(buffer, object, schema);
     }
 
     @Override
     protected <T> void parseObject(byte[] bytes, T template, Schema<T> schema) {
-        ProtostuffIOUtil.mergeFrom(bytes, template, schema);
+        GraphIOUtil.mergeFrom(bytes, template, schema);
     }
+
 }

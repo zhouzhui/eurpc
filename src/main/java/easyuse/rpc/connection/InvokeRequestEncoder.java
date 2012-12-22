@@ -26,59 +26,37 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc;
+package easyuse.rpc.connection;
 
-import java.io.Serializable;
+import java.io.ByteArrayOutputStream;
 
-import easyuse.rpc.util.MessageFormatter;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelHandler;
+
+import easyuse.rpc.ClientSerializer;
+import easyuse.rpc.InvokeRequest;
 
 /**
  * @author dhf
  */
-public final class InvokeResponse implements Serializable {
-    private static final long serialVersionUID = -4770779355986475834L;
+public class InvokeRequestEncoder extends SimpleChannelHandler {
+    private final ClientSerializer serializer;
 
-    private String requestID;
-
-    private Throwable exception;
-
-    private Object result;
-
-    public InvokeResponse() {}
-
-    public InvokeResponse(String requestID) {
-        this.requestID = requestID;
-    }
-
-    public String getRequestID() {
-        return requestID;
-    }
-
-    public void setRequestID(String requestID) {
-        this.requestID = requestID;
-    }
-
-    public Throwable getException() {
-        return exception;
-    }
-
-    public void setException(Throwable exception) {
-        this.exception = exception;
-    }
-
-    public Object getResult() {
-        return result;
-    }
-
-    public void setResult(Object result) {
-        this.result = result;
+    public InvokeRequestEncoder(ClientSerializer serializer) {
+        this.serializer = serializer;
     }
 
     @Override
-    public String toString() {
-        return MessageFormatter.format(
-                "requestID: {}, result: {}, exception: {}", new Object[] {
-                    requestID, result, exception
-                });
+    public void writeRequested(ChannelHandlerContext ctx, MessageEvent e)
+            throws Exception {
+        InvokeRequest request = (InvokeRequest) e.getMessage();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(16384);
+        serializer.encodeRequest(baos, request);
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(baos.toByteArray());
+        Channels.write(ctx, e.getFuture(), buffer);
     }
 }

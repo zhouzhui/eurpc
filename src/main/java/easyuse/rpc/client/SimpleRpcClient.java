@@ -28,160 +28,146 @@
  ******************************************************************************/
 package easyuse.rpc.client;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
-import easyuse.rpc.ClientSerializer;
 import easyuse.rpc.InvokeRequest;
 import easyuse.rpc.InvokeResponse;
+import easyuse.rpc.Logger;
 import easyuse.rpc.RpcClient;
-import easyuse.rpc.util.IOUtils;
-import easyuse.rpc.util.SocketConfig;
+import easyuse.rpc.RpcConnection;
+import easyuse.rpc.RpcConnectionFactory;
+import easyuse.rpc.util.LoggerHolder;
 
 /**
- * jdk dynamic proxy
- * 
  * @author dhf
  */
-public class SimpleRpcClient implements RpcClient, InvocationHandler {
-    private InetSocketAddress inetAddr;
+public class SimpleRpcClient implements RpcClient {
+    private static final Logger logger = LoggerHolder
+            .getLogger(SimpleRpcClient.class);
 
-    private ClientSerializer serializer;
+    private RpcConnectionFactory connectionFactory;
 
-    private SocketConfig socketOptions;
+    private RpcConnection connection;
 
-    private Socket socket;
+    private RpcInvoker invoker = new RpcInvoker();
 
-    private InputStream in;
-
-    private OutputStream out;
-
-    private boolean inited;
+    private AtomicLong requestID = new AtomicLong(0L);
 
     /**
-     * tcpNoDelay: true, keepAlive: true, connectTimeout: infinite, readTimeout:
-     * infinite
-     * 
-     * @param host
-     * @param port
-     * @param serializer
+     * @param connection
      */
-    public SimpleRpcClient(String host, int port, ClientSerializer serializer) {
-        this(host, port, serializer, 0L, 0L);
-    }
-
-    /**
-     * tcpNoDelay: true, keepAlive: true
-     * 
-     * @param host
-     * @param port
-     * @param serializer
-     * @param connectTimeout
-     * @param readTimeout
-     */
-    public SimpleRpcClient(String host, int port, ClientSerializer serializer,
-            long connectTimeout, long readTimeout) {
-        this(host, port, serializer, new SocketConfig().setKeepAlive(true)
-                .setTcpNoDelay(true).setConnectTimeout((int) connectTimeout)
-                .setReadTimeout((int) readTimeout));
-    }
-
-    /**
-     * @param host
-     * @param port
-     * @param serializer
-     * @param socketOptions
-     */
-    public SimpleRpcClient(String host, int port, ClientSerializer serializer,
-            SocketConfig socketOptions) {
-        if (null == serializer) {
-            throw new NullPointerException("serializer");
+    public SimpleRpcClient(RpcConnection connection) {
+        if (null == connection) {
+            throw new NullPointerException("connection");
         }
-        if (null == socketOptions) {
-            socketOptions = new SocketConfig();
-        }
-
-        this.inetAddr = new InetSocketAddress(host, port);
-        this.serializer = serializer;
-        this.socketOptions = socketOptions;
+        this.connection = connection;
     }
 
+    /**
+     * @param factory
+     */
+    public SimpleRpcClient(RpcConnectionFactory factory) {
+        if (null == factory) {
+            throw new NullPointerException("factory");
+        }
+        this.connectionFactory = factory;
+    }
+
+    /**
+     * get an implementation for the interface
+     * 
+     * @param interfaceClass
+     * @return
+     * @throws Throwable
+     */
     @SuppressWarnings("unchecked")
-    @Override
     public <T> T proxy(Class<T> interfaceClass) throws Throwable {
         if (!interfaceClass.isInterface()) {
             throw new IllegalArgumentException(interfaceClass.getName()
                     + " is not an interface");
         }
         return (T) Proxy.newProxyInstance(interfaceClass.getClassLoader(),
-                new Class<?>[] { interfaceClass }, this);
+                new Class<?>[] {
+                    interfaceClass
+                }, invoker);
     }
 
-    public void init() throws Throwable {
-        if (inited) {
-            return;
+    public void destroy() throws Throwable {
+        if (null != connection) {
+            connection.close();
         }
-        socket = new Socket();
-        IOUtils.setSocketOptions(socket, socketOptions).connect(inetAddr,
-                socketOptions.getConnectTimeout());
-        in = new BufferedInputStream(socket.getInputStream());
-        out = new BufferedOutputStream(socket.getOutputStream());
-        inited = true;
     }
 
-    @Override
-    public void close() throws Throwable {
-        IOUtils.closeQuietly(in);
-        IOUtils.closeQuietly(out);
-        IOUtils.closeQuietly(socket);
-        
-        in = null;
-        out = null;
-        socket = null;
-        inited = false;
-    }
-    
-    @Override
-    public boolean isInited() {
-        return inited;
+    protected String generateRequestID() {
+        long id = requestID.getAndIncrement();
+        return id + "";
     }
 
-    @Override
-    public boolean isClosed() {
-        return (null == socket) || !socket.isConnected() || socket.isClosed()
-                || socket.isInputShutdown() || socket.isOutputShutdown();
-    }
-
-    @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-            throws Throwable {
-        init();
-        // get interface
-        String className = method.getDeclaringClass().getName();
-        List<String> parameterTypes = new LinkedList<String>();
-        for (Class<?> parameterType: method.getParameterTypes()) {
-            parameterTypes.add(parameterType.getName());
-        }
-
-        InvokeRequest request = new InvokeRequest(className, method.getName(),
-                parameterTypes.toArray(new String[0]), args);
-        serializer.encodeRequest(out, request);
-        out.flush();
-        InvokeResponse response = serializer.decodeResponse(in);
-        if (response.getException() != null) {
-            throw response.getException();
+    private RpcConnection getConnection() throws Throwable {
+        if (null != connection) {
+            if (!connection.isConnected()) {
+                connection.connect();
+            }
+            return connection;
         } else {
-            return response.getResult();
+            return connectionFactory.getConnection();
         }
     }
 
+    private void recycle(RpcConnection connection) {
+        if (null != connection && null != connectionFactory) {
+            try {
+                connectionFactory.recycle(connection);
+            } catch (Throwable t) {
+                logger.warn("recycle rpc connection fail!", t);
+            }
+        }
+    }
+
+    /**
+     * rpc proxy invoker
+     * 
+     * @author dhf
+     */
+    private class RpcInvoker implements InvocationHandler {
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args)
+                throws Throwable {
+            String className = method.getDeclaringClass().getName();
+            List<String> parameterTypes = new LinkedList<String>();
+            for (Class<?> parameterType: method.getParameterTypes()) {
+                parameterTypes.add(parameterType.getName());
+            }
+
+            String requestID = generateRequestID();
+            InvokeRequest request = new InvokeRequest(requestID, className,
+                    method.getName(), parameterTypes.toArray(new String[0]),
+                    args);
+            RpcConnection connection = null;
+            InvokeResponse response = null;
+            try {
+                connection = getConnection();
+                response = connection.sendRequest(request);
+            } catch (Throwable t) {
+                logger.warn("send rpc request fail! request: <{}>",
+                        new Object[] {
+                            request
+                        }, t);
+                throw new RuntimeException(t);
+            } finally {
+                recycle(connection);
+            }
+
+            if (response.getException() != null) {
+                throw response.getException();
+            } else {
+                return response.getResult();
+            }
+        }
+    }
 }

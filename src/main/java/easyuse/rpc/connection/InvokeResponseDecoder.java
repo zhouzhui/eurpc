@@ -26,37 +26,52 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc.client;
-
-import java.io.ByteArrayOutputStream;
+package easyuse.rpc.connection;
 
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.buffer.ChannelBufferInputStream;
+import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
+import org.jboss.netty.handler.codec.frame.FrameDecoder;
 
 import easyuse.rpc.ClientSerializer;
-import easyuse.rpc.InvokeRequest;
+import easyuse.rpc.InvokeResponse;
 
 /**
+ * <p>
+ * Format:
+ * 
+ * <pre>
+ *  +---------------------------+-----------+
+ *  |  content length(4 bytes)  |  content  |
+ *  +---------------------------+-----------+
+ * </pre>
+ * 
+ * <strong> Warning:</strong> the content length header will also pass to the
+ * serializer
+ * </p>
+ * 
  * @author dhf
  */
-public class InvokeRequestEncoder extends SimpleChannelHandler {
+public class InvokeResponseDecoder extends FrameDecoder {
     private final ClientSerializer serializer;
 
-    public InvokeRequestEncoder(ClientSerializer serializer) {
+    public InvokeResponseDecoder(ClientSerializer serializer) {
         this.serializer = serializer;
     }
 
     @Override
-    public void writeRequested(ChannelHandlerContext ctx, MessageEvent e)
-            throws Exception {
-        InvokeRequest request = (InvokeRequest) e.getMessage();
-        ByteArrayOutputStream baos = new ByteArrayOutputStream(16384);
-        serializer.encodeRequest(baos, request);
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(baos.toByteArray());
-        Channels.write(ctx, e.getFuture(), buffer);
+    protected Object decode(ChannelHandlerContext context, Channel channel,
+            ChannelBuffer buffer) throws Exception {
+        if (buffer.readableBytes() < 4) {
+            return null;
+        }
+        int length = buffer.getInt(buffer.readerIndex());
+        if (buffer.readableBytes() < length + 4) {
+            return null;
+        }
+        ChannelBufferInputStream in = new ChannelBufferInputStream(buffer);
+        InvokeResponse response = serializer.decodeResponse(in);
+        return response;
     }
 }

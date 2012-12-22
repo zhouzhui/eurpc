@@ -26,59 +26,32 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc;
+package easyuse.rpc.serializer;
 
-import java.io.Serializable;
-
-import easyuse.rpc.util.MessageFormatter;
+import com.dyuproject.protostuff.LinkedBuffer;
+import com.dyuproject.protostuff.ProtostuffIOUtil;
+import com.dyuproject.protostuff.Schema;
 
 /**
  * @author dhf
  */
-public final class InvokeResponse implements Serializable {
-    private static final long serialVersionUID = -4770779355986475834L;
+public class ProtoStuffSerializer extends AbstractProtostuffSerializer {
+    private static final ProtoStuffSerializer INSTANCE = new ProtoStuffSerializer();
 
-    private String requestID;
+    private ProtoStuffSerializer() {}
 
-    private Throwable exception;
-
-    private Object result;
-
-    public InvokeResponse() {}
-
-    public InvokeResponse(String requestID) {
-        this.requestID = requestID;
-    }
-
-    public String getRequestID() {
-        return requestID;
-    }
-
-    public void setRequestID(String requestID) {
-        this.requestID = requestID;
-    }
-
-    public Throwable getException() {
-        return exception;
-    }
-
-    public void setException(Throwable exception) {
-        this.exception = exception;
-    }
-
-    public Object getResult() {
-        return result;
-    }
-
-    public void setResult(Object result) {
-        this.result = result;
+    public static ProtoStuffSerializer getInstance() {
+        return INSTANCE;
     }
 
     @Override
-    public String toString() {
-        return MessageFormatter.format(
-                "requestID: {}, result: {}, exception: {}", new Object[] {
-                    requestID, result, exception
-                });
+    protected <T> int writeObject(LinkedBuffer buffer, T object,
+            Schema<T> schema) {
+        return ProtostuffIOUtil.writeTo(buffer, object, schema);
+    }
+
+    @Override
+    protected <T> void parseObject(byte[] bytes, T template, Schema<T> schema) {
+        ProtostuffIOUtil.mergeFrom(bytes, template, schema);
     }
 }

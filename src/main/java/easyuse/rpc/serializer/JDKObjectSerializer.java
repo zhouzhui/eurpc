@@ -26,8 +26,9 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc.serialize;
+package easyuse.rpc.serializer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
@@ -39,19 +40,20 @@ import easyuse.rpc.InvokeRequest;
 import easyuse.rpc.InvokeResponse;
 import easyuse.rpc.SerializeException;
 import easyuse.rpc.ServerSerializer;
+import easyuse.rpc.util.IOUtils;
 
 /**
  * jdk default serialize
  * 
  * @author dhf
  */
-public class SimpleSerializer implements ClientSerializer, ServerSerializer {
+public class JDKObjectSerializer implements ClientSerializer, ServerSerializer {
 
-    private static final SimpleSerializer INSTANCE = new SimpleSerializer();
+    private static final JDKObjectSerializer INSTANCE = new JDKObjectSerializer();
 
-    private SimpleSerializer() {}
+    private JDKObjectSerializer() {}
 
-    public static SimpleSerializer getInstance() {
+    public static JDKObjectSerializer getInstance() {
         return INSTANCE;
     }
 
@@ -59,6 +61,9 @@ public class SimpleSerializer implements ClientSerializer, ServerSerializer {
     public InvokeResponse decodeResponse(InputStream inputStream)
             throws SerializeException, IOException {
         try {
+            // read length field header
+            IOUtils.readInt(inputStream);
+            // pase object
             ObjectInputStream input = new ObjectInputStream(inputStream);
             return (InvokeResponse) input.readObject();
         } catch (ClassNotFoundException e) {
@@ -69,24 +74,36 @@ public class SimpleSerializer implements ClientSerializer, ServerSerializer {
     @Override
     public void encodeRequest(OutputStream outputStream, InvokeRequest request)
             throws SerializeException, IOException {
-        ObjectOutputStream output = new ObjectOutputStream(outputStream);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(16384);
+        ObjectOutputStream objOut = new ObjectOutputStream(baos);
+        objOut.writeUTF(request.getRequestID());
+        objOut.writeUTF(request.getClassName());
+        objOut.writeUTF(request.getMethodName());
+        objOut.writeObject(request.getParameterTypes());
+        objOut.writeObject(request.getParameters());
 
-        output.writeUTF(request.getClassName());
-        output.writeUTF(request.getMethodName());
-        output.writeObject(request.getParameterTypes());
-        output.writeObject(request.getParameters());
+        // get serialized object bytes
+        byte[] bytes = baos.toByteArray();
+        // write length field header
+        IOUtils.writeInt(outputStream, bytes.length);
+        // write object bytes
+        outputStream.write(bytes);
     }
 
     public InvokeRequest decodeRequest(InputStream inputStream)
             throws SerializeException, IOException {
         try {
+            // read length field header
+            IOUtils.readInt(inputStream);
+            // parse object
             ObjectInputStream input = new ObjectInputStream(inputStream);
+            String requestID = input.readUTF();
             String className = input.readUTF();
             String methodName = input.readUTF();
             String[] parameterTypes = (String[]) input.readObject();
             Object[] parameters = (Object[]) input.readObject();
-            return new InvokeRequest(className, methodName, parameterTypes,
-                    parameters);
+            return new InvokeRequest(requestID, className, methodName,
+                    parameterTypes, parameters);
         } catch (ClassNotFoundException e) {
             throw new SerializeException(e);
         }
@@ -95,7 +112,15 @@ public class SimpleSerializer implements ClientSerializer, ServerSerializer {
     @Override
     public void encodeResponse(OutputStream outputStream, InvokeResponse result)
             throws SerializeException, IOException {
-        ObjectOutputStream output = new ObjectOutputStream(outputStream);
-        output.writeObject(result);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(16384);
+        ObjectOutputStream objOut = new ObjectOutputStream(baos);
+        objOut.writeObject(result);
+
+        // get serialized object bytes
+        byte[] bytes = baos.toByteArray();
+        // write length field header
+        IOUtils.writeInt(outputStream, bytes.length);
+        // write object bytes
+        outputStream.write(bytes);
     }
 }

@@ -26,59 +26,63 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc;
+package easyuse.rpc.util;
 
-import java.io.Serializable;
-
-import easyuse.rpc.util.MessageFormatter;
+import easyuse.rpc.Logger;
+import easyuse.rpc.LoggerFactory;
+import easyuse.rpc.logging.JDKLoggerFactory;
 
 /**
  * @author dhf
  */
-public final class InvokeResponse implements Serializable {
-    private static final long serialVersionUID = -4770779355986475834L;
+public class LoggerHolder {
+    private static LoggerFactory FACTORY = autodetect();
 
-    private String requestID;
+    private static LoggerFactory autodetect() {
+        String packageName = "easyuse.rpc.logging";
+        String[] simplifiedClassNames = {
+            "SLF4JLoggerFactory", "JCLLoggerFactory", "Log4j12LoggerFactory"
+        };
 
-    private Throwable exception;
-
-    private Object result;
-
-    public InvokeResponse() {}
-
-    public InvokeResponse(String requestID) {
-        this.requestID = requestID;
-    }
-
-    public String getRequestID() {
-        return requestID;
-    }
-
-    public void setRequestID(String requestID) {
-        this.requestID = requestID;
-    }
-
-    public Throwable getException() {
-        return exception;
-    }
-
-    public void setException(Throwable exception) {
-        this.exception = exception;
-    }
-
-    public Object getResult() {
-        return result;
-    }
-
-    public void setResult(Object result) {
-        this.result = result;
-    }
-
-    @Override
-    public String toString() {
-        return MessageFormatter.format(
-                "requestID: {}, result: {}, exception: {}", new Object[] {
-                    requestID, result, exception
+        LoggerFactory factory = null;
+        for (String simplifiedClassName: simplifiedClassNames) {
+            String className = packageName + "." + simplifiedClassName;
+            try {
+                factory = (LoggerFactory) Class.forName(className)
+                        .newInstance();
+                Logger logger = factory.getLogger(className);
+                logger.info("autodetect logger type: {}", new Object[] {
+                    logger.getClass()
                 });
+                return factory;
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        }
+        factory = new JDKLoggerFactory();
+        Logger logger = factory.getLogger(JDKLoggerFactory.class);
+        logger.info("fallback to logger type: {}", new Object[] {
+            logger.getClass()
+        });
+        return factory;
+    }
+
+    public static Logger getLogger(Class<?> clazz) {
+        return getFactory().getLogger(clazz);
+    }
+
+    public static Logger getLogger(String name) {
+        return getFactory().getLogger(name);
+    }
+
+    public synchronized static void setFactory(LoggerFactory factory) {
+        if (null == factory) {
+            throw new NullPointerException("factory");
+        }
+        FACTORY = factory;
+    }
+
+    public synchronized static LoggerFactory getFactory() {
+        return FACTORY;
     }
 }

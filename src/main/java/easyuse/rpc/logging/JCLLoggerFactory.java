@@ -26,32 +26,37 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc.serialize;
+package easyuse.rpc.logging;
 
-import com.dyuproject.protostuff.LinkedBuffer;
-import com.dyuproject.protostuff.ProtobufIOUtil;
-import com.dyuproject.protostuff.Schema;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.commons.logging.LogFactory;
+
+import easyuse.rpc.Logger;
+import easyuse.rpc.LoggerFactory;
 
 /**
  * @author dhf
  */
-public class ProtobufSerializer extends AbstractProtostuffSerializer {
-    private static final ProtobufSerializer INSTANCE = new ProtobufSerializer();
+public class JCLLoggerFactory implements LoggerFactory {
+    private Map<String, Logger> loggerMap = new HashMap<String, Logger>(128);
 
-    private ProtobufSerializer() {}
-
-    public static ProtobufSerializer getInstance() {
-        return INSTANCE;
+    @Override
+    public Logger getLogger(String name) {
+        synchronized (this) {
+            Logger logger = loggerMap.get(name);
+            if (null == logger) {
+                logger = new JCLLoggerAdapter(LogFactory.getLog(name));
+                loggerMap.put(name, logger);
+            }
+            return logger;
+        }
     }
 
     @Override
-    protected <T> int writeObject(LinkedBuffer buffer, T object,
-            Schema<T> schema) {
-        return ProtobufIOUtil.writeTo(buffer, object, schema);
+    public Logger getLogger(Class<?> clazz) {
+        return getLogger(clazz.getName());
     }
 
-    @Override
-    protected <T> void parseObject(byte[] bytes, T template, Schema<T> schema) {
-        ProtobufIOUtil.mergeFrom(bytes, template, schema);
-    }
 }

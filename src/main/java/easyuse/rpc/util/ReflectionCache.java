@@ -103,7 +103,7 @@ public class ReflectionCache {
         }
     }
 
-    public static String join(String[] strs, String seperator) {
+    private static String join(String[] strs, String seperator) {
         if (null == strs || 0 == strs.length) {
             return "";
         }
@@ -111,18 +111,6 @@ public class ReflectionCache {
         sb.append(strs[0]);
         for (int i = 1; i < strs.length; i++) {
             sb.append(seperator).append(strs[i]);
-        }
-        return sb.toString();
-    }
-
-    public static String join(Object[] objs, String seperator) {
-        if (null == objs || 0 == objs.length) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder(1024);
-        sb.append(objs[0]);
-        for (int i = 1; i < objs.length; i++) {
-            sb.append(seperator).append(objs[i]);
         }
         return sb.toString();
     }

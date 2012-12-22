@@ -26,14 +26,10 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc.client;
+package easyuse.rpc.connection;
 
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
+import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -56,14 +52,14 @@ import org.jboss.netty.util.Timer;
 import easyuse.rpc.ClientSerializer;
 import easyuse.rpc.InvokeRequest;
 import easyuse.rpc.InvokeResponse;
-import easyuse.rpc.RpcClient;
+import easyuse.rpc.RpcConnection;
 import easyuse.rpc.util.SocketConfig;
 
 /**
  * @author dhf
  */
-public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
-        InvocationHandler {
+public class NettyRpcConnection extends SimpleChannelHandler implements
+        RpcConnection {
 
     private InetSocketAddress inetAddr;
 
@@ -73,11 +69,13 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
 
     private volatile InvokeResponse response;
 
-    private Timer timer;
+    private volatile Throwable exception;
+
+    private volatile Timer timer;
 
     private SocketConfig socketOptions;
 
-    private boolean inited;
+    private boolean connected;
 
     /**
      * tcpNoDelay: true, keepAlive: true, connectTimeout: infinite, readTimeout:
@@ -87,8 +85,8 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
      * @param port
      * @param serializer
      */
-    public NettyRpcClient(String host, int port, ClientSerializer serializer) {
-        this(host, port, serializer, 0L, 0L);
+    public NettyRpcConnection(String host, int port, ClientSerializer serializer) {
+        this(host, port, serializer, null);
     }
 
     /**
@@ -100,15 +98,15 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
      * @param connectTimeout
      * @param readTimeout
      */
-    public NettyRpcClient(String host, int port, ClientSerializer serializer,
-            long connectTimeout, long readTimeout) {
+    public NettyRpcConnection(String host, int port,
+            ClientSerializer serializer, long connectTimeout, long readTimeout) {
         this(host, port, serializer, new SocketConfig().setKeepAlive(true)
                 .setTcpNoDelay(true).setConnectTimeout((int) connectTimeout)
                 .setReadTimeout((int) readTimeout));
     }
 
-    public NettyRpcClient(String host, int port, ClientSerializer serializer,
-            SocketConfig socketOptions) {
+    public NettyRpcConnection(String host, int port,
+            ClientSerializer serializer, SocketConfig socketOptions) {
         if (null == serializer) {
             throw new NullPointerException("serializer");
         }
@@ -122,19 +120,12 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
         this.timer = new HashedWheelTimer();
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    public <T> T proxy(Class<T> interfaceClass) throws Throwable {
-        if (!interfaceClass.isInterface()) {
-            throw new IllegalArgumentException(interfaceClass.getName()
-                    + " is not an interface");
-        }
-        return (T) Proxy.newProxyInstance(interfaceClass.getClassLoader(),
-                new Class<?>[] { interfaceClass }, this);
+    public void setSocketOptions(SocketConfig socketOptions) {
+        this.socketOptions = socketOptions;
     }
 
-    public void init() throws Throwable {
-        if (inited) {
+    public void connect() throws Throwable {
+        if (connected) {
             return;
         }
         ChannelFactory factory = new NioClientSocketChannelFactory(
@@ -155,7 +146,7 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
                         serializer));
                 pipeline.addLast("encoder",
                         new InvokeRequestEncoder(serializer));
-                pipeline.addLast("handler", NettyRpcClient.this);
+                pipeline.addLast("handler", NettyRpcConnection.this);
                 return pipeline;
             }
         });
@@ -169,14 +160,14 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
             throw channelFuture.getCause();
         }
         channel = channelFuture.getChannel();
-        inited = true;
+        connected = true;
     }
-    
+
     @Override
-    public boolean isInited() {
-        return inited;
+    public boolean isConnected() {
+        return connected;
     }
-    
+
     @Override
     public boolean isClosed() {
         return (null == channel) || !channel.isConnected()
@@ -186,10 +177,10 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
             throws Exception {
-        InvokeResponse resp = new InvokeResponse();
-        resp.setException(e.getCause());
-        response = resp;
-        close();
+        exception = e.getCause();
+        synchronized (channel) {
+            channel.notifyAll();
+        }
     }
 
     public void waitForResponse() {
@@ -210,46 +201,45 @@ public class NettyRpcClient extends SimpleChannelHandler implements RpcClient,
     }
 
     @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-            throws Throwable {
-        init();
-        String className = method.getDeclaringClass().getName();
-        List<String> parameterTypes = new LinkedList<String>();
-        for (Class<?> parameterType: method.getParameterTypes()) {
-            parameterTypes.add(parameterType.getName());
+    public InvokeResponse sendRequest(InvokeRequest request) throws Throwable {
+        if (!isConnected()) {
+            throw new IllegalStateException("not connected");
         }
-
-        InvokeRequest request = new InvokeRequest(className, method.getName(),
-                parameterTypes.toArray(new String[0]), args);
         ChannelFuture writeFuture = channel.write(request);
         if (!writeFuture.awaitUninterruptibly().isSuccess()) {
             close();
             throw writeFuture.getCause();
         }
         waitForResponse();
+
+        Throwable ex = exception;
         InvokeResponse resp = this.response;
         this.response = null;
-        if (resp.getException() != null) {
-            throw resp.getException();
-        } else {
-            return resp.getResult();
+        this.exception = null;
+
+        if (null != ex) {
+            close();
+            throw ex;
         }
+        return resp;
     }
 
     @Override
     public void close() throws Exception {
+        connected = false;
+        if (null != timer) {
+            timer.stop();
+            timer = null;
+        }
         if (null != channel) {
             channel.close().awaitUninterruptibly();
             channel.getFactory().releaseExternalResources();
+
+            this.exception = new IOException("connection closed");
             synchronized (channel) {
                 channel.notifyAll();
             }
             channel = null;
         }
-        if (null != timer) {
-            timer.stop();
-            timer = null;
-        }
-        inited = false;
     }
 }

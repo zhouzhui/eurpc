@@ -30,14 +30,15 @@ package easyuse.rpc;
 
 import java.io.Serializable;
 
+import easyuse.rpc.util.MessageFormatter;
+
 /**
  * @author dhf
  */
 public final class InvokeRequest implements Serializable {
-    /**
-     * 
-     */
     private static final long serialVersionUID = 2339729677060183691L;
+
+    private String requestID;
 
     private String className;
 
@@ -55,6 +56,23 @@ public final class InvokeRequest implements Serializable {
         this.methodName = methodName;
         this.parameterTypes = parameterTypes;
         this.parameters = parameters;
+    }
+
+    public InvokeRequest(String requestID, String className, String methodName,
+            String[] parameterTypes, Object[] parameters) {
+        this.requestID = requestID;
+        this.className = className;
+        this.methodName = methodName;
+        this.parameterTypes = parameterTypes;
+        this.parameters = parameters;
+    }
+
+    public String getRequestID() {
+        return requestID;
+    }
+
+    public void setRequestID(String requestID) {
+        this.requestID = requestID;
     }
 
     public String getClassName() {
@@ -93,4 +111,13 @@ public final class InvokeRequest implements Serializable {
         return serialVersionUID;
     }
 
+    @Override
+    public String toString() {
+        return MessageFormatter
+                .format("requestID: {}, className: {}, methodName: {}, parameterTypes: {}, parameters: {}",
+                        new Object[] {
+                            requestID, className, methodName, parameterTypes,
+                            parameters
+                        });
+    }
 }

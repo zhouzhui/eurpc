@@ -49,15 +49,20 @@ import org.jboss.netty.handler.timeout.ReadTimeoutHandler;
 import org.jboss.netty.util.HashedWheelTimer;
 import org.jboss.netty.util.Timer;
 
+import easyuse.rpc.Logger;
 import easyuse.rpc.RpcServer;
 import easyuse.rpc.ServerSerializer;
 import easyuse.rpc.util.HandlerMapper;
+import easyuse.rpc.util.LoggerHolder;
 import easyuse.rpc.util.SocketConfig;
 
 /**
  * @author dhf
  */
 public class NettyRpcServer implements RpcServer {
+    private static final Logger logger = LoggerHolder
+            .getLogger(NettyRpcServer.class);
+
     protected InetSocketAddress inetAddr;
 
     protected Map<String, Object> handlersMap;
@@ -69,6 +74,8 @@ public class NettyRpcServer implements RpcServer {
     private SocketConfig socketOptions;
 
     private SocketConfig childSocketOptions;
+
+    private Timer timer;
 
     /**
      * tcpNoDelay: true, keepAlive: true, readTimeout: infinite
@@ -154,7 +161,7 @@ public class NettyRpcServer implements RpcServer {
                 Executors.newCachedThreadPool(),
                 Executors.newCachedThreadPool());
         ServerBootstrap bootstrap = new ServerBootstrap(channelFactory);
-        final Timer timer = new HashedWheelTimer();
+        timer = new HashedWheelTimer();
         bootstrap.setPipelineFactory(new ChannelPipelineFactory() {
             @Override
             public ChannelPipeline getPipeline() throws Exception {
@@ -183,10 +190,17 @@ public class NettyRpcServer implements RpcServer {
 
         Channel channel = bootstrap.bind(inetAddr);
         channelGroup.add(channel);
+
+        logger.info("rpc server started");
+
         waitForShutdownCommand();
         ChannelGroupFuture future = channelGroup.close();
         future.awaitUninterruptibly();
         bootstrap.releaseExternalResources();
+        timer.stop();
+        timer = null;
+
+        logger.info("rpc server stoped");
     }
 
     @Override

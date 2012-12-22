@@ -26,52 +26,36 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc.client;
+package easyuse.rpc.logging;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBufferInputStream;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.codec.frame.FrameDecoder;
+import java.util.HashMap;
+import java.util.Map;
 
-import easyuse.rpc.ClientSerializer;
-import easyuse.rpc.InvokeResponse;
+import easyuse.rpc.Logger;
+import easyuse.rpc.LoggerFactory;
 
 /**
- * <p>
- * Format:
- * 
- * <pre>
- *  +---------------------------+-----------+
- *  |  content length(4 bytes)  |  content  |
- *  +---------------------------+-----------+
- * </pre>
- * 
- * <strong> Warning:</strong> the content length header will also pass to the
- * serializer
- * </p>
- * 
  * @author dhf
  */
-public class InvokeResponseDecoder extends FrameDecoder {
-    private final ClientSerializer serializer;
+public class SLF4JLoggerFactory implements LoggerFactory {
+    private Map<String, Logger> loggerMap = new HashMap<String, Logger>(128);
 
-    public InvokeResponseDecoder(ClientSerializer serializer) {
-        this.serializer = serializer;
+    @Override
+    public Logger getLogger(String name) {
+        synchronized (this) {
+            Logger logger = loggerMap.get(name);
+            if (null == logger) {
+                logger = new SLF4JLoggerAdapter(
+                        org.slf4j.LoggerFactory.getLogger(name));
+                loggerMap.put(name, logger);
+            }
+            return logger;
+        }
     }
 
     @Override
-    protected Object decode(ChannelHandlerContext context, Channel channel,
-            ChannelBuffer buffer) throws Exception {
-        if (buffer.readableBytes() < 4) {
-            return null;
-        }
-        int length = buffer.getInt(buffer.readerIndex());
-        if (buffer.readableBytes() < length + 4) {
-            return null;
-        }
-        ChannelBufferInputStream in = new ChannelBufferInputStream(buffer);
-        InvokeResponse response = serializer.decodeResponse(in);
-        return response;
+    public Logger getLogger(Class<?> clazz) {
+        return getLogger(clazz.getName());
     }
+
 }

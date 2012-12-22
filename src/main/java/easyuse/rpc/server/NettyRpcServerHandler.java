@@ -40,12 +40,17 @@ import org.jboss.netty.channel.group.ChannelGroup;
 
 import easyuse.rpc.InvokeRequest;
 import easyuse.rpc.InvokeResponse;
+import easyuse.rpc.Logger;
+import easyuse.rpc.util.LoggerHolder;
 import easyuse.rpc.util.ReflectionCache;
 
 /**
  * @author dhf
  */
 public class NettyRpcServerHandler extends SimpleChannelUpstreamHandler {
+    private static final Logger logger = LoggerHolder
+            .getLogger(NettyRpcServerHandler.class);
+
     private final Map<String, Object> handlersMap;
 
     private final ChannelGroup channelGroups;
@@ -71,6 +76,10 @@ public class NettyRpcServerHandler extends SimpleChannelUpstreamHandler {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
             throws Exception {
+        InvokeRequest request = (InvokeRequest) ctx.getAttachment();
+        logger.warn("handle rpc request fail! request: <{}>", new Object[] {
+            request
+        }, e.getCause());
         e.getChannel().close().awaitUninterruptibly();
     }
 
@@ -82,12 +91,16 @@ public class NettyRpcServerHandler extends SimpleChannelUpstreamHandler {
             return;
         }
         InvokeRequest request = (InvokeRequest) msg;
-        InvokeResponse response = new InvokeResponse();
+        ctx.setAttachment(request);
+
+        InvokeResponse response = new InvokeResponse(request.getRequestID());
         try {
             Object result = handle(request);
             response.setResult(result);
         } catch (Throwable t) {
-            printException(t);
+            logger.warn("handle rpc request fail! request: <{}>", new Object[] {
+                request
+            }, t);
             response.setException(t);
         }
         e.getChannel().write(response);
@@ -102,9 +115,5 @@ public class NettyRpcServerHandler extends SimpleChannelUpstreamHandler {
         // invoke
         Object result = method.invoke(handler, parameters);
         return result;
-    }
-
-    protected void printException(Throwable t) {
-        t.printStackTrace();
     }
 }

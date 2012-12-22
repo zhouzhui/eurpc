@@ -28,57 +28,47 @@
  ******************************************************************************/
 package easyuse.rpc;
 
-import java.io.Serializable;
-
-import easyuse.rpc.util.MessageFormatter;
-
 /**
  * @author dhf
  */
-public final class InvokeResponse implements Serializable {
-    private static final long serialVersionUID = -4770779355986475834L;
+public interface Logger {
+    boolean isDebugEnabled();
 
-    private String requestID;
+    void debug(String msg);
 
-    private Throwable exception;
+    void debug(String msg, Object[] args);
 
-    private Object result;
+    void debug(String msg, Throwable exception);
 
-    public InvokeResponse() {}
+    void debug(String msg, Object[] args, Throwable exception);
 
-    public InvokeResponse(String requestID) {
-        this.requestID = requestID;
-    }
+    boolean isInfoEnabled();
 
-    public String getRequestID() {
-        return requestID;
-    }
+    void info(String msg);
 
-    public void setRequestID(String requestID) {
-        this.requestID = requestID;
-    }
+    void info(String msg, Object[] args);
 
-    public Throwable getException() {
-        return exception;
-    }
+    void info(String msg, Throwable exception);
 
-    public void setException(Throwable exception) {
-        this.exception = exception;
-    }
+    void info(String msg, Object[] args, Throwable exception);
 
-    public Object getResult() {
-        return result;
-    }
+    boolean isWarnEnabled();
 
-    public void setResult(Object result) {
-        this.result = result;
-    }
+    void warn(String msg);
 
-    @Override
-    public String toString() {
-        return MessageFormatter.format(
-                "requestID: {}, result: {}, exception: {}", new Object[] {
-                    requestID, result, exception
-                });
-    }
+    void warn(String msg, Object[] args);
+
+    void warn(String msg, Throwable exception);
+
+    void warn(String msg, Object[] args, Throwable exception);
+
+    boolean isErrorEnabled();
+
+    void error(String msg);
+
+    void error(String msg, Object[] args);
+
+    void error(String msg, Throwable exception);
+
+    void error(String msg, Object[] args, Throwable exception);
 }

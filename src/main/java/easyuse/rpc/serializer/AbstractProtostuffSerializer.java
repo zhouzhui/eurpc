@@ -26,7 +26,7 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc.serialize;
+package easyuse.rpc.serializer;
 
 import java.io.IOException;
 import java.io.InputStream;

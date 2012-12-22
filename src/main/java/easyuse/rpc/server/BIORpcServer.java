@@ -37,10 +37,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import easyuse.rpc.Logger;
 import easyuse.rpc.RpcServer;
 import easyuse.rpc.ServerSerializer;
 import easyuse.rpc.util.HandlerMapper;
 import easyuse.rpc.util.IOUtils;
+import easyuse.rpc.util.LoggerHolder;
 import easyuse.rpc.util.SocketConfig;
 
 /**
@@ -48,7 +50,10 @@ import easyuse.rpc.util.SocketConfig;
  * 
  * @author dhf
  */
-public class SimpleRpcServer implements RpcServer {
+public class BIORpcServer implements RpcServer {
+    private static final Logger logger = LoggerHolder
+            .getLogger(BIORpcServer.class);
+
     protected InetSocketAddress inetAddr;
 
     protected Map<String, Object> handlerMap;
@@ -70,7 +75,7 @@ public class SimpleRpcServer implements RpcServer {
      * @param serializer
      * @param handlers
      */
-    public SimpleRpcServer(int port, ServerSerializer serializer,
+    public BIORpcServer(int port, ServerSerializer serializer,
             Object... handlers) {
         this(null, port, serializer, 0L, handlers);
     }
@@ -84,7 +89,7 @@ public class SimpleRpcServer implements RpcServer {
      * @param readTimeout
      * @param handlers
      */
-    public SimpleRpcServer(String host, int port, ServerSerializer serializer,
+    public BIORpcServer(String host, int port, ServerSerializer serializer,
             long readTimeout, Object... handlers) {
         this(host, port, serializer, HandlerMapper.getHandlerMap(handlers),
                 new SocketConfig().setReuseAddress(true).setKeepAlive(true)
@@ -99,7 +104,7 @@ public class SimpleRpcServer implements RpcServer {
      *            key: interface qualified name, value: handler
      * @param socketOptions
      */
-    public SimpleRpcServer(String host, int port, ServerSerializer serializer,
+    public BIORpcServer(String host, int port, ServerSerializer serializer,
             Map<String, Object> handlers, SocketConfig socketOptions) {
         if (null == serializer) {
             throw new NullPointerException("serializer");
@@ -127,6 +132,9 @@ public class SimpleRpcServer implements RpcServer {
             server = new ServerSocket();
             server.setReceiveBufferSize(socketOptions.getReceiveBufferSize());
             server.bind(inetAddr);
+
+            logger.info("rpc server started");
+
             while (!stopped.get()) {
                 try {
                     Socket socket = server.accept();
@@ -143,6 +151,7 @@ public class SimpleRpcServer implements RpcServer {
             executor.awaitTermination(socketOptions.getReadTimeout(),
                     TimeUnit.MICROSECONDS);
             server.close();
+            logger.info("rpc server stoped");
         }
     }
 
@@ -152,8 +161,8 @@ public class SimpleRpcServer implements RpcServer {
         server.close();
     }
 
-    protected SimpleServerWorker getWorker(Socket socket) {
-        return new SimpleServerWorker(serializer, handlerMap, socket);
+    protected Runnable getWorker(Socket socket) {
+        return new BIOServerWorker(serializer, handlerMap, socket);
     }
 
 }

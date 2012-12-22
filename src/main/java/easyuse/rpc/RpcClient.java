@@ -39,29 +39,5 @@ public interface RpcClient {
      * @return
      * @throws Throwable
      */
-    <T> T proxy(Class<T> interfaceClass) throws Throwable;
-
-    /**
-     * @throws Throwable
-     */
-    void init() throws Throwable;
-
-    /**
-     * @throws Throwable
-     */
-    void close() throws Throwable;
-    
-    /**
-     * client is initialized or not
-     * 
-     * @return
-     */
-    boolean isInited();
-    
-    /**
-     * cient is closed or not
-     * 
-     * @return
-     */
-    boolean isClosed();
+    public <T> T proxy(Class<T> interfaceClass) throws Throwable;
 }

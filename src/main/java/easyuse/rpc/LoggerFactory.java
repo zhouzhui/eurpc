@@ -26,51 +26,13 @@
  * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  ******************************************************************************/
-package easyuse.rpc.serialize;
-
-import com.dyuproject.protostuff.GraphIOUtil;
-import com.dyuproject.protostuff.LinkedBuffer;
-import com.dyuproject.protostuff.Schema;
+package easyuse.rpc;
 
 /**
- * <p>
- * Features:
- * <ul>
- * <li>high-performance graph serialization</li>
- * <li>handles cyclic dependencies and polymorphic pojos (interface and abstract
- * classes)</li>
- * </ul>
- * </p>
- * <p>
- * Limitations:
- * <ul>
- * <li>When a root message is serialized/deserialized, its nested messages
- * should not contain references to it.</li>
- * </ul>
- * <p>
- * <strong> Note that if you have collection fields that can potentially be
- * cyclic, you need to enable the system property below:
- * <p style="background:gray;height:24px;line-height:24px;text-indent:20px">
- * -Dprotostuff.runtime.collection_schema_on_repeated_fields=true
- * </p>
- * </strong>
- * 
- * @see <a
- *      href="http://code.google.com/p/protostuff/wiki/SerializingObjectGraphs"
- *      >SerializingObjectGraphs</a> </p>
  * @author dhf
  */
-public class GraphSerializer extends AbstractProtostuffSerializer {
+public interface LoggerFactory {
+    Logger getLogger(String name);
 
-    @Override
-    protected <T> int writeObject(LinkedBuffer buffer, T object,
-            Schema<T> schema) {
-        return GraphIOUtil.writeTo(buffer, object, schema);
-    }
-
-    @Override
-    protected <T> void parseObject(byte[] bytes, T template, Schema<T> schema) {
-        GraphIOUtil.mergeFrom(bytes, template, schema);
-    }
-
+    Logger getLogger(Class<?> clazz);
 }

@@ -28,57 +28,37 @@
  ******************************************************************************/
 package easyuse.rpc;
 
-import java.io.Serializable;
-
-import easyuse.rpc.util.MessageFormatter;
-
 /**
  * @author dhf
  */
-public final class InvokeResponse implements Serializable {
-    private static final long serialVersionUID = -4770779355986475834L;
+public interface RpcConnection {
+    /**
+     * @param request
+     * @throws Throwable
+     */
+    InvokeResponse sendRequest(InvokeRequest request) throws Throwable;
 
-    private String requestID;
+    /**
+     * @throws Throwable
+     */
+    void connect() throws Throwable;
 
-    private Throwable exception;
+    /**
+     * @throws Throwable
+     */
+    void close() throws Throwable;
 
-    private Object result;
+    /**
+     * connection is connected or not
+     * 
+     * @return
+     */
+    boolean isConnected();
 
-    public InvokeResponse() {}
-
-    public InvokeResponse(String requestID) {
-        this.requestID = requestID;
-    }
-
-    public String getRequestID() {
-        return requestID;
-    }
-
-    public void setRequestID(String requestID) {
-        this.requestID = requestID;
-    }
-
-    public Throwable getException() {
-        return exception;
-    }
-
-    public void setException(Throwable exception) {
-        this.exception = exception;
-    }
-
-    public Object getResult() {
-        return result;
-    }
-
-    public void setResult(Object result) {
-        this.result = result;
-    }
-
-    @Override
-    public String toString() {
-        return MessageFormatter.format(
-                "requestID: {}, result: {}, exception: {}", new Object[] {
-                    requestID, result, exception
-                });
-    }
+    /**
+     * connection is closed or not
+     * 
+     * @return
+     */
+    boolean isClosed();
 }

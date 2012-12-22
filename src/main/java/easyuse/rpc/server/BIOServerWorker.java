@@ -39,21 +39,26 @@ import java.util.Map;
 
 import easyuse.rpc.InvokeRequest;
 import easyuse.rpc.InvokeResponse;
+import easyuse.rpc.Logger;
 import easyuse.rpc.ServerSerializer;
 import easyuse.rpc.util.IOUtils;
+import easyuse.rpc.util.LoggerHolder;
 import easyuse.rpc.util.ReflectionCache;
 
 /**
  * @author dhf
  */
-public class SimpleServerWorker implements Runnable {
+public class BIOServerWorker implements Runnable {
+    private static final Logger logger = LoggerHolder
+            .getLogger(BIOServerWorker.class);
+
     private ServerSerializer serializer;
 
     private Map<String, Object> handlersMap;
 
     private Socket clientSocket;
 
-    public SimpleServerWorker(ServerSerializer serializer,
+    public BIOServerWorker(ServerSerializer serializer,
             Map<String, Object> handlers, Socket clientSocket) {
         this.serializer = serializer;
         this.handlersMap = handlers;
@@ -76,13 +81,14 @@ public class SimpleServerWorker implements Runnable {
         Object result = null;
         InputStream input = null;
         OutputStream output = null;
+
+        InvokeRequest request = null;
         try {
             input = new BufferedInputStream(clientSocket.getInputStream());
             output = new BufferedOutputStream(clientSocket.getOutputStream());
             while (clientSocket.isConnected() && !clientSocket.isClosed()
                     && !clientSocket.isInputShutdown()
                     && !clientSocket.isOutputShutdown()) {
-                InvokeRequest request = null;
                 try {
                     request = serializer.decodeRequest(input);
                 } catch (EOFException e) {
@@ -90,12 +96,16 @@ public class SimpleServerWorker implements Runnable {
                     return;
                 }
 
-                InvokeResponse response = new InvokeResponse();
+                InvokeResponse response = new InvokeResponse(
+                        request.getRequestID());
                 try {
                     result = handle(request);
                     response.setResult(result);
                 } catch (Throwable t) {
-                    printException(t);
+                    logger.warn("handle rpc request fail! request: <{}>",
+                            new Object[] {
+                                request
+                            }, t);
                     response.setException(t);
                 }
                 serializer.encodeResponse(output, response);
@@ -103,15 +113,13 @@ public class SimpleServerWorker implements Runnable {
                 output.flush();
             }
         } catch (Throwable t) {
-            printException(t);
+            logger.warn("handle rpc request fail! request: <{}>", new Object[] {
+                request
+            }, t);
         } finally {
             IOUtils.closeQuietly(input);
             IOUtils.closeQuietly(output);
             IOUtils.closeQuietly(clientSocket);
         }
-    }
-
-    protected void printException(Throwable t) {
-        t.printStackTrace();
     }
 }
