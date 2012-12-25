@@ -225,7 +225,7 @@ public class NettyRpcConnection extends SimpleChannelHandler implements
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() throws Throwable {
         connected = false;
         if (null != timer) {
             timer.stop();
